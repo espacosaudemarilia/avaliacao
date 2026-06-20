@@ -153,6 +153,7 @@ function relatorioHTML(a){return `<div class="print-head"><div><h2>Relatório de
 window.abrirRelatorio=function(id){const a=avaliacoes.find(x=>x.id===id); if(!a) return; $('relatorioConteudo').innerHTML=relatorioHTML(a); $('modalRelatorio').classList.add('open');}
 window.fecharModal=function(){$('modalRelatorio').classList.remove('open');}
 
+
 window.excluirAvaliacao=async function(id){
   const a=avaliacoes.find(x=>x.id===id);
   if(!a) return;
