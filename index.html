@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -106,7 +105,7 @@ body{min-height:100vh;background:radial-gradient(circle at 10% 5%,rgba(0,214,163
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, doc, setDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDrXoEWTJtdml0UeBP1nVlsR7AovqEd_RQ",
@@ -118,7 +117,7 @@ const firebaseConfig = {
   appId: "1:714266147692:web:25521ae1742be5381fd149",
   measurementId: "G-NWGKV8NR42"
 };
-const ADMIN_PASSWORD = "espacosaude014";
+const ADMIN_PASSWORD = "admin";
 const COLLECTION = "avaliacoes_espaco_saude";
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -146,13 +145,29 @@ async function carregarAvaliacoes(){const snap=await getDocs(collection(db,COLLE
 function atualizarEventos(){const sel=$('filtroEvento'); const atual=sel.value; const eventos=[...new Set(avaliacoes.map(a=>a.evento||'Sem evento'))].sort(); sel.innerHTML='<option value="">Todos os eventos</option>'+eventos.map(e=>`<option value="${esc(e)}">${esc(e)}</option>`).join(''); sel.value=atual;}
 function filtros(){let arr=[...avaliacoes]; const busca=String($('filtroBusca').value||'').toLowerCase(); const ev=$('filtroEvento').value; if(busca) arr=arr.filter(a=>String(a.nome).toLowerCase().includes(busca)||String(a.whatsapp).includes(cleanPhone(busca))); if(ev) arr=arr.filter(a=>(a.evento||'Sem evento')===ev); const ordem=$('filtroOrdem').value; if(ordem==='asc') arr.sort((a,b)=>String(a.criadoEm).localeCompare(String(b.criadoEm))); else if(ordem==='nome') arr.sort((a,b)=>String(a.nome).localeCompare(String(b.nome))); else arr.sort((a,b)=>String(b.criadoEm).localeCompare(String(a.criadoEm))); return arr;}
 function renderResumo(arr){const eventos=[...new Set(arr.map(a=>a.evento||'Sem evento'))].length; const comFoto=arr.filter(a=>a.foto).length; $('adminResumo').innerHTML=`<div class="metric"><span>Total</span><b>${arr.length}</b></div><div class="metric"><span>Eventos</span><b>${eventos}</b></div><div class="metric"><span>Com foto</span><b>${comFoto}</b></div><div class="metric"><span>Sem foto</span><b>${arr.length-comFoto}</b></div>`;}
-function renderAdmin(){const arr=filtros(); renderResumo(arr); const list=$('adminLista'); if(!arr.length){list.innerHTML='<div class="hint">Nenhuma avaliação encontrada.</div>';return;} list.innerHTML=arr.map(a=>`<div class="item"><div><h3>${esc(a.nome)}</h3><p>${esc(a.whatsappFormatado||fmtPhone(a.whatsapp))} • ${esc(a.evento||'Sem evento')} • ${dataBR(a.criadoEm)}</p></div><div class="actions"><button class="btn secondary" onclick="abrirRelatorio('${a.id}')">Relatório</button></div></div>`).join('');}
+function renderAdmin(){const arr=filtros(); renderResumo(arr); const list=$('adminLista'); if(!arr.length){list.innerHTML='<div class="hint">Nenhuma avaliação encontrada.</div>';return;} list.innerHTML=arr.map(a=>`<div class="item"><div><h3>${esc(a.nome)}</h3><p>${esc(a.whatsappFormatado||fmtPhone(a.whatsapp))} • ${esc(a.evento||'Sem evento')} • ${dataBR(a.criadoEm)}</p></div><div class="actions"><button class="btn secondary" onclick="abrirRelatorio('${a.id}')">Relatório</button><button class="btn danger" onclick="excluirAvaliacao('${a.id}')">Excluir</button></div></div>`).join('');}
 ['filtroBusca','filtroEvento','filtroOrdem'].forEach(id=>$(id).addEventListener('input',renderAdmin));
 
 function metric(label,value){return `<div class="print-card"><span>${esc(label)}</span><b>${esc(value||'—')}</b></div>`;}
 function relatorioHTML(a){return `<div class="print-head"><div><h2>Relatório de Avaliação Física</h2><p><b>Espaço Saúde</b><br>${esc(a.nome)} • ${esc(a.whatsappFormatado||fmtPhone(a.whatsapp))}</p></div><div><p><b>Evento:</b> ${esc(a.evento||'Sem evento')}<br><b>Data:</b> ${dataBR(a.criadoEm)}</p></div></div><div class="print-grid">${metric('Idade',a.idade)}${metric('Pressão arterial',a.pressao)}${metric('Peso',a.peso)}${metric('IMC',a.imc)}${metric('Índice de gordura',a.gordura)}${metric('Índice de músculo',a.musculo)}${metric('Metabolismo basal',a.tmb)}${metric('Idade metabólica',a.idadeMetabolica)}${metric('Gordura visceral',a.gorduraVisceral)}</div>${a.foto?`<h3 style="margin-top:18px">Foto</h3><img class="print-photo" src="${a.foto}">`:''}`;}
 window.abrirRelatorio=function(id){const a=avaliacoes.find(x=>x.id===id); if(!a) return; $('relatorioConteudo').innerHTML=relatorioHTML(a); $('modalRelatorio').classList.add('open');}
 window.fecharModal=function(){$('modalRelatorio').classList.remove('open');}
+
+window.excluirAvaliacao=async function(id){
+  const a=avaliacoes.find(x=>x.id===id);
+  if(!a) return;
+  const confirmar=confirm(`Tem certeza que deseja excluir o cadastro de ${a.nome}?\n\nEssa ação não pode ser desfeita.`);
+  if(!confirmar) return;
+  try{
+    await deleteDoc(doc(db,COLLECTION,id));
+    avaliacoes=avaliacoes.filter(x=>x.id!==id);
+    atualizarEventos();
+    renderAdmin();
+    alert('Cadastro excluído com sucesso.');
+  }catch(err){
+    alert('Não foi possível excluir o cadastro. '+(err.message||''));
+  }
+}
 
 $('btnVisitante').addEventListener('click',async()=>{try{if(!avaliacoes.length) await carregarAvaliacoes(); const whats=cleanPhone($('visitWhatsapp').value); if(!whats) throw new Error('Digite o WhatsApp.'); const arr=avaliacoes.filter(a=>String(a.whatsapp)===whats).sort((a,b)=>String(b.criadoEm).localeCompare(String(a.criadoEm))); if(!arr.length){msg('msgVisitante','err','Nenhuma avaliação encontrada para este WhatsApp.');$('visitResults').innerHTML='';return;} msg('msgVisitante','ok',`${arr.length} avaliação(ões) encontrada(s).`); $('visitResults').innerHTML=arr.map(a=>`<div class="item"><div><h3>${esc(a.nome)}</h3><p>${esc(a.evento||'Sem evento')} • ${dataBR(a.criadoEm)}</p><div class="report">${metric('Peso',a.peso)}${metric('IMC',a.imc)}${metric('Gordura',a.gordura)}${metric('Músculo',a.musculo)}</div></div><button class="btn secondary" onclick="abrirRelatorio('${a.id}')">Ver relatório</button></div>`).join('');}catch(err){msg('msgVisitante','err',err.message||'Erro ao buscar.');}});
 
