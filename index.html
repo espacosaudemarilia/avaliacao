@@ -33,7 +33,7 @@ body{min-height:100vh;background:radial-gradient(circle at 10% 5%,rgba(0,214,163
       <div class="grid">
         <div class="field full"><label>Nome completo *</label><input id="nome" required autocomplete="name" placeholder="Ex: Maria Aparecida Silva"></div>
         <div class="field"><label>WhatsApp *</label><input id="whatsapp" required inputmode="numeric" placeholder="(14) 99999-9999"></div>
-        <div class="field"><label>Evento</label><input id="evento" placeholder="Ex: Avaliação Julho / Feira / Rota 28"></div>
+        <div class="field"><label>Evento *</label><select id="evento" required><option value="">Selecione um evento</option></select></div>
         <div class="field"><label>Idade</label><input id="idade" inputmode="numeric" placeholder="Ex: 35"></div>
         <div class="field"><label>Pressão arterial</label><input id="pressao" inputmode="text" placeholder="Ex: 12/8 ou 13/9"></div>
         <div class="field"><label>Peso</label><input id="peso" inputmode="decimal" placeholder="Ex: 72.5"></div>
@@ -80,6 +80,16 @@ body{min-height:100vh;background:radial-gradient(circle at 10% 5%,rgba(0,214,163
 
     <div id="adminArea" class="hidden">
       <div class="card">
+        <h2>Eventos</h2>
+        <p class="hint">Crie os eventos que ficarão disponíveis para seleção na nova avaliação.</p>
+        <div class="grid" style="margin-top:14px">
+          <div class="field"><label>Novo evento</label><input id="novoEvento" placeholder="Ex: Avaliação Feira Junho"></div>
+          <div class="field" style="display:flex;align-items:end"><button class="btn" id="btnCriarEvento" type="button">Criar evento</button></div>
+        </div>
+        <div id="listaEventosAdmin" class="list" style="margin-top:10px"></div>
+        <div id="msgEvento" class="msg"></div>
+      </div>
+      <div class="card">
         <div class="admin-top">
           <div><h2>Painel administrativo</h2><p class="hint">Consulte avaliações, filtre por evento e gere relatórios.</p></div>
           <div class="actions"><button class="btn secondary" id="btnExportCsv">Exportar todos CSV</button><button class="btn secondary" id="btnPrintTodos">Relatório geral</button></div>
@@ -119,10 +129,12 @@ const firebaseConfig = {
 };
 const ADMIN_PASSWORD = "admin";
 const COLLECTION = "avaliacoes_espaco_saude";
+const EVENTOS_COLLECTION = "eventos_espaco_saude";
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const $ = id => document.getElementById(id);
 let avaliacoes = [];
+let eventosCadastro = [];
 let fotoBase64 = "";
 
 function cleanPhone(v){return String(v||'').replace(/\D/g,'');}
@@ -139,7 +151,48 @@ document.querySelectorAll('.tab').forEach(btn=>btn.addEventListener('click',()=>
 async function compressImage(file){return new Promise((resolve,reject)=>{if(!file) return resolve(''); const img=new Image(); const reader=new FileReader(); reader.onload=()=>{img.onload=()=>{const max=900; let w=img.width,h=img.height; if(w>h&&w>max){h=Math.round(h*max/w);w=max}else if(h>=w&&h>max){w=Math.round(w*max/h);h=max} const canvas=document.createElement('canvas'); canvas.width=w; canvas.height=h; canvas.getContext('2d').drawImage(img,0,0,w,h); resolve(canvas.toDataURL('image/jpeg',.72));}; img.onerror=reject; img.src=reader.result;}; reader.onerror=reject; reader.readAsDataURL(file);});}
 $('foto').addEventListener('change',async e=>{fotoBase64=await compressImage(e.target.files[0]); if(fotoBase64){$('previewFoto').src=fotoBase64;$('previewFoto').classList.remove('hidden');}});
 
-$('formAvaliacao').addEventListener('submit',async e=>{e.preventDefault(); const btn=$('btnSalvar'); btn.disabled=true; btn.textContent='Salvando...'; try{const nome=val('nome'); const whats=cleanPhone(val('whatsapp')); if(!nome||!whats) throw new Error('Preencha nome completo e WhatsApp.'); const id='aval_'+Date.now(); const avaliacao={id,nome,whatsapp:whats,whatsappFormatado:fmtPhone(whats),evento:val('evento')||'Sem evento',idade:numVal('idade'),pressao:val('pressao'),peso:numVal('peso'),imc:numVal('imc'),gordura:numVal('gordura'),musculo:numVal('musculo'),tmb:numVal('tmb'),idadeMetabolica:numVal('idadeMetabolica'),gorduraVisceral:numVal('gorduraVisceral'),foto:fotoBase64||'',criadoEm:new Date().toISOString()}; await setDoc(doc(db,COLLECTION,id),{v:avaliacao}); $('formAvaliacao').reset(); $('previewFoto').classList.add('hidden'); fotoBase64=''; msg('msgCadastro','ok',`Avaliação salva com sucesso.<br>Acesso visitante pelo WhatsApp: <span class="code">${fmtPhone(whats)}</span>`);}catch(err){msg('msgCadastro','err','Não foi possível salvar. '+(err.message||''));}finally{btn.disabled=false;btn.textContent='Salvar avaliação';}});
+$('formAvaliacao').addEventListener('submit',async e=>{e.preventDefault(); const btn=$('btnSalvar'); btn.disabled=true; btn.textContent='Salvando...'; try{const nome=val('nome'); const whats=cleanPhone(val('whatsapp')); const evento=val('evento'); if(!nome||!whats||!evento) throw new Error('Preencha nome completo, WhatsApp e selecione o evento.'); const id='aval_'+Date.now(); const avaliacao={id,nome,whatsapp:whats,whatsappFormatado:fmtPhone(whats),evento:evento,idade:numVal('idade'),pressao:val('pressao'),peso:numVal('peso'),imc:numVal('imc'),gordura:numVal('gordura'),musculo:numVal('musculo'),tmb:numVal('tmb'),idadeMetabolica:numVal('idadeMetabolica'),gorduraVisceral:numVal('gorduraVisceral'),foto:fotoBase64||'',criadoEm:new Date().toISOString()}; await setDoc(doc(db,COLLECTION,id),{v:avaliacao}); $('formAvaliacao').reset(); $('previewFoto').classList.add('hidden'); fotoBase64=''; msg('msgCadastro','ok',`Avaliação salva com sucesso.<br>Acesso visitante pelo WhatsApp: <span class="code">${fmtPhone(whats)}</span>`);}catch(err){msg('msgCadastro','err','Não foi possível salvar. '+(err.message||''));}finally{btn.disabled=false;btn.textContent='Salvar avaliação';}});
+
+async function carregarEventos(){
+  const snap=await getDocs(collection(db,EVENTOS_COLLECTION));
+  eventosCadastro=[];
+  snap.forEach(d=>{
+    const data=d.data();
+    eventosCadastro.push({id:d.id,nome:data.nome||d.id,criadoEm:data.criadoEm||''});
+  });
+  eventosCadastro.sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'));
+  renderEventosCadastro();
+  renderEventosAdmin();
+}
+
+function renderEventosCadastro(){
+  const sel=$('evento');
+  if(!sel) return;
+  const atual=sel.value;
+  if(!eventosCadastro.length){
+    sel.innerHTML='<option value="">Nenhum evento criado no admin</option>';
+    return;
+  }
+  sel.innerHTML='<option value="">Selecione um evento</option>'+eventosCadastro.map(e=>`<option value="${esc(e.nome)}">${esc(e.nome)}</option>`).join('');
+  sel.value=atual;
+}
+
+function renderEventosAdmin(){
+  const list=$('listaEventosAdmin');
+  if(!list) return;
+  if(!eventosCadastro.length){
+    list.innerHTML='<div class="hint">Nenhum evento criado ainda.</div>';
+    return;
+  }
+  list.innerHTML=eventosCadastro.map(e=>`<div class="item"><div><h3>${esc(e.nome)}</h3><p>Disponível no cadastro</p></div></div>`).join('');
+}
+
+function slugEvento(nome){
+  return String(nome||'').trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')
+    .slice(0,80) || ('evento-'+Date.now());
+}
 
 async function carregarAvaliacoes(){const snap=await getDocs(collection(db,COLLECTION)); avaliacoes=[]; snap.forEach(d=>avaliacoes.push(d.data().v||d.data())); atualizarEventos(); renderAdmin();}
 function atualizarEventos(){const sel=$('filtroEvento'); const atual=sel.value; const eventos=[...new Set(avaliacoes.map(a=>a.evento||'Sem evento'))].sort(); sel.innerHTML='<option value="">Todos os eventos</option>'+eventos.map(e=>`<option value="${esc(e)}">${esc(e)}</option>`).join(''); sel.value=atual;}
@@ -170,9 +223,25 @@ window.excluirAvaliacao=async function(id){
   }
 }
 
+$('btnCriarEvento').addEventListener('click',async()=>{
+  const nome=val('novoEvento');
+  if(!nome){msg('msgEvento','err','Digite o nome do evento.');return;}
+  try{
+    const id=slugEvento(nome);
+    await setDoc(doc(db,EVENTOS_COLLECTION,id),{nome,criadoEm:new Date().toISOString()});
+    $('novoEvento').value='';
+    msg('msgEvento','ok','Evento criado com sucesso.');
+    await carregarEventos();
+  }catch(err){
+    msg('msgEvento','err','Não foi possível criar o evento. '+(err.message||''));
+  }
+});
+
+carregarEventos().catch(()=>{});
+
 $('btnVisitante').addEventListener('click',async()=>{try{if(!avaliacoes.length) await carregarAvaliacoes(); const whats=cleanPhone($('visitWhatsapp').value); if(!whats) throw new Error('Digite o WhatsApp.'); const arr=avaliacoes.filter(a=>String(a.whatsapp)===whats).sort((a,b)=>String(b.criadoEm).localeCompare(String(a.criadoEm))); if(!arr.length){msg('msgVisitante','err','Nenhuma avaliação encontrada para este WhatsApp.');$('visitResults').innerHTML='';return;} msg('msgVisitante','ok',`${arr.length} avaliação(ões) encontrada(s).`); $('visitResults').innerHTML=arr.map(a=>`<div class="item"><div><h3>${esc(a.nome)}</h3><p>${esc(a.evento||'Sem evento')} • ${dataBR(a.criadoEm)}</p><div class="report">${metric('Peso',a.peso)}${metric('IMC',a.imc)}${metric('Gordura',a.gordura)}${metric('Músculo',a.musculo)}</div></div><button class="btn secondary" onclick="abrirRelatorio('${a.id}')">Ver relatório</button></div>`).join('');}catch(err){msg('msgVisitante','err',err.message||'Erro ao buscar.');}});
 
-$('btnAdminLogin').addEventListener('click',async()=>{if($('adminSenha').value!==ADMIN_PASSWORD){msg('msgAdmin','err','Senha incorreta.');return;} $('adminLogin').classList.add('hidden'); $('adminArea').classList.remove('hidden'); await carregarAvaliacoes();});
+$('btnAdminLogin').addEventListener('click',async()=>{if($('adminSenha').value!==ADMIN_PASSWORD){msg('msgAdmin','err','Senha incorreta.');return;} $('adminLogin').classList.add('hidden'); $('adminArea').classList.remove('hidden'); await carregarEventos(); await carregarAvaliacoes();});
 $('btnExportCsv').addEventListener('click',()=>{const arr=filtros(); const headers=['Nome','WhatsApp','Evento','Idade','Pressao arterial','Peso','IMC','Gordura','Musculo','TMB','Idade metabolica','Gordura visceral','Data']; const rows=arr.map(a=>[a.nome,a.whatsappFormatado||fmtPhone(a.whatsapp),a.evento,a.idade,a.pressao,a.peso,a.imc,a.gordura,a.musculo,a.tmb,a.idadeMetabolica,a.gorduraVisceral,dataBR(a.criadoEm)]); const csv=[headers,...rows].map(r=>r.map(x=>'"'+String(x??'').replace(/"/g,'""')+'"').join(';')).join('\n'); const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='avaliacoes_espaco_saude.csv'; a.click(); URL.revokeObjectURL(url);});
 $('btnPrintTodos').addEventListener('click',()=>{const arr=filtros(); $('relatorioConteudo').innerHTML=`<div class="print-head"><div><h2>Relatório Geral de Avaliações</h2><p>Espaço Saúde • ${arr.length} cadastro(s)</p></div><div><p>${new Date().toLocaleString('pt-BR')}</p></div></div>`+arr.map(a=>`<div style="border-bottom:1px solid #ddd;padding:10px 0">${relatorioHTML(a)}</div>`).join(''); $('modalRelatorio').classList.add('open');});
 </script>
