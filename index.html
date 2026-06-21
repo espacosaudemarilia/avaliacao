@@ -233,7 +233,7 @@ function renderEventosAdmin(){
     list.innerHTML='<div class="hint">Nenhum evento criado ainda.</div>';
     return;
   }
-  list.innerHTML=eventosCadastro.map(e=>`<div class="item"><div><h3>${esc(e.nome)}</h3><p>Disponível no cadastro • Mensagem promocional: ${e.mostrarMensagem?'Sim':'Não'}</p></div></div>`).join('');
+  list.innerHTML=eventosCadastro.map(e=>`<div class="item"><div><h3>${esc(e.nome)}</h3><p>Disponível no cadastro • Mensagem promocional: ${e.mostrarMensagem?'Sim':'Não'}</p></div><div class="actions"><button class="btn danger" onclick="excluirEvento('${e.id}')">Excluir evento</button></div></div>`).join('');
 }
 
 function slugEvento(nome){
@@ -269,6 +269,28 @@ window.excluirAvaliacao=async function(id){
     alert('Cadastro excluído com sucesso.');
   }catch(err){
     alert('Não foi possível excluir o cadastro. '+(err.message||''));
+  }
+}
+
+window.excluirEvento=async function(id){
+  const ev=eventosCadastro.find(e=>e.id===id);
+  if(!ev) return;
+  const usado=avaliacoes.some(a=>(a.evento||'')===ev.nome);
+  let aviso=`Tem certeza que deseja excluir o evento "${ev.nome}"?\n\nEle deixará de aparecer na seleção de novas avaliações.`;
+  if(usado){
+    aviso+=`\n\nAtenção: já existem avaliações cadastradas com esse evento. Elas não serão apagadas, apenas o evento deixará de aparecer para novos cadastros.`;
+  }
+  const confirmar=confirm(aviso);
+  if(!confirmar) return;
+  try{
+    await deleteDoc(doc(db,EVENTOS_COLLECTION,id));
+    eventosCadastro=eventosCadastro.filter(e=>e.id!==id);
+    renderEventosCadastro();
+    renderEventosAdmin();
+    atualizarEventos();
+    alert('Evento excluído com sucesso.');
+  }catch(err){
+    alert('Não foi possível excluir o evento. '+(err.message||''));
   }
 }
 
